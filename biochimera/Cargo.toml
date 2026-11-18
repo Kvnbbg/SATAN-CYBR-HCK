@@ -2,12 +2,17 @@
 name = "biochimera"
 version = "0.1.0"
 edition = "2021"
-description = "403-bypass tester for authorized security testing and CTFs"
+description = "403-bypass tester and recon tooling for authorized security testing and CTFs"
 
 [[bin]]
 name = "biochimera"
 path = "src/main.rs"
 
+[[bin]]
+name = "reconstruction"
+path = "src/bin/reconstruction.rs"
+
 [dependencies]
 reqwest = { version = "0.11", default-features = false, features = ["blocking", "rustls-tls"] }
 clap = { version = "4", features = ["derive"] }
+hickory-resolver = "0.24"
