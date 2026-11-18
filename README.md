@@ -4,3 +4,7 @@
 
 - [Hijacked Networks & Cryptocurrency Heists](docs/hijacked-networks-crypto-heists.md) — how attackers compromise off-chain infrastructure (routing, DNS, telecom, and servers) to steal cryptocurrency.
 - [The Modern Cybercrime Economy: Old Weaknesses, New Attack Surfaces](docs/cybercrime-economy-defense.md) — how attackers combine new attack surfaces with old, unpatched weaknesses, then monetize access through theft, fraud, and extortion.
+
+## Tools
+
+- [Visual Tools for Reverse Engineering: Deobfuscators](docs/reverse-engineering-deobfuscation-tools.md) — browser-based tools that use AST transformations to restore variable names and generate visual control flow graphs for analysis.
