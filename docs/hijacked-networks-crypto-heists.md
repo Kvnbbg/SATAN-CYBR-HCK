@@ -2,7 +2,7 @@
 
 The intersection of **hijacked networks** and **cryptocurrency heists** describes a shift in how digital assets are stolen. Rather than solely attacking smart contracts, sophisticated actors increasingly compromise the **off-chain infrastructure**—the routing, domain, and server layers that the crypto ecosystem relies on—to execute large-scale thefts.
 
-### 🦚 Hijacked Networks: Attacking the Off-Chain Layer
+### 🕸️ Hijacked Networks: Attacking the Off-Chain Layer
 
 Attackers are targeting the foundational internet protocols that direct traffic and authenticate users, turning trusted infrastructure into a weapon.
 
