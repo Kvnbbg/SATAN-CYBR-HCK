@@ -8,6 +8,7 @@
 //   * Origin-IP      — try to find the real server behind a CDN
 //   * Port scan      — TCP connect scan of common service ports
 //   * Timing probe   — response-time side channel over repeated requests
+//   * WAF test       — benign probe payloads to measure WAF rule coverage (--waf-test)
 //
 // FOR AUTHORIZED SECURITY TESTING AND CTFs ONLY. Only run against systems you
 // own or have explicit written permission to test.
@@ -44,6 +45,14 @@ struct Args {
     /// Number of timing samples
     #[arg(long, default_value_t = 8)]
     timing_samples: u32,
+
+    /// Run the WAF-coverage test (sends benign probe payloads and reports blocks)
+    #[arg(long)]
+    waf_test: bool,
+
+    /// Query parameter name to inject WAF probes into
+    #[arg(long, default_value = "q")]
+    param: String,
 }
 
 fn host_and_url(target: &str) -> (String, String) {
@@ -280,6 +289,92 @@ fn timing_probe(client: &Client, url: &str, samples: u32) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// WAF coverage test
+// ---------------------------------------------------------------------------
+// Sends a set of suspicious-looking probe strings as a query parameter and
+// reports which the WAF blocks (403/406/429/5xx or a block page) versus which
+// pass through. These are detection probes, not exploits: they are meant to be
+// rejected by a correctly configured WAF, so you can measure rule coverage.
+fn waf_test(client: &Client, base_url: &str, param: &str) {
+    println!("\n=== WAF coverage test (param: {param}) ===");
+
+    // Baseline with a harmless value.
+    let benign = format!("{base_url}{}{param}=hello", sep(base_url));
+    let (base_status, base_len) = match client.get(&benign).send() {
+        Ok(r) => {
+            let st = r.status().as_u16();
+            let len = r.bytes().map(|b| b.len() as u64).unwrap_or(0);
+            println!("  Baseline (benign): status {st}, {len} bytes");
+            (st, len)
+        }
+        Err(e) => {
+            println!("  Baseline request failed: {e}");
+            return;
+        }
+    };
+
+    let probes: [(&str, &str); 10] = [
+        ("SQLi",            "' OR '1'='1"),
+        ("SQLi-union",      "1 UNION SELECT NULL--"),
+        ("XSS",             "<script>alert(1)</script>"),
+        ("XSS-img",         "<img src=x onerror=alert(1)>"),
+        ("Path traversal",  "../../../../etc/passwd"),
+        ("Path traversal2", "..%2f..%2f..%2fetc%2fpasswd"),
+        ("Cmd injection",   "; cat /etc/passwd"),
+        ("Cmd injection2",  "| whoami"),
+        ("SSTI",            "{{7*7}}"),
+        ("Log4Shell",       "${jndi:ldap://x/y}"),
+    ];
+
+    let mut blocked = 0;
+    let mut passed = 0;
+    for (name, payload) in probes {
+        let enc = urlencode(payload);
+        let url = format!("{base_url}{}{param}={enc}", sep(base_url));
+        match client.get(&url).send() {
+            Ok(r) => {
+                let st = r.status().as_u16();
+                let len = r.bytes().map(|b| b.len() as u64).unwrap_or(0);
+                let is_block = matches!(st, 403 | 406 | 429 | 501) || (st >= 500)
+                    || (st != base_status);
+                if is_block {
+                    println!("  [BLOCKED] {name:<16} status {st} ({len} bytes)");
+                    blocked += 1;
+                } else {
+                    println!("  [PASSED ] {name:<16} status {st} ({len} bytes) — payload reached the app");
+                    passed += 1;
+                }
+                let _ = base_len;
+            }
+            Err(e) => println!("  [ERROR  ] {name:<16} {e}"),
+        }
+    }
+    println!("  ---");
+    println!("  {blocked} blocked, {passed} passed of {} probes.", blocked + passed);
+    if passed > 0 {
+        println!("  Note: 'passed' probes were not blocked by the WAF. On an authorized");
+        println!("  target, review whether those inputs are safely handled by the app.");
+    }
+}
+
+fn sep(url: &str) -> char {
+    if url.contains('?') { '&' } else { '?' }
+}
+
+fn urlencode(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
 fn main() {
     let args = Args::parse();
     let (host, url) = host_and_url(&args.target);
@@ -290,7 +385,7 @@ fn main() {
     let client = Client::builder()
         .timeout(Duration::from_secs(args.timeout))
         .danger_accept_invalid_certs(true)
-        .user_agent("reconstruction/0.2")
+        .user_agent("reconstruction/0.3")
         .build()
         .expect("failed to build HTTP client");
 
@@ -314,6 +409,9 @@ fn main() {
             Some(ip) => port_scan(ip, Duration::from_secs(2)),
             None => println!("\n=== Port scan ===\n  No IP to scan."),
         }
+    }
+    if args.waf_test {
+        waf_test(&client, &url, &args.param);
     }
     timing_probe(&client, &url, args.timing_samples);
 }

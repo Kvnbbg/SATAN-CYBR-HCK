@@ -15,6 +15,7 @@
   - **Origin-IP discovery** — tries to find the real server behind a CDN (via leak-prone subdomains and MX hosts).
   - **Port scan** — TCP connect scan of ~20 common service ports.
   - **Timing side-channel** — measures response-time mean/stddev to flag input-dependent timing.
+  - **WAF coverage test** (`--waf-test`) — sends benign probe strings (SQLi/XSS/traversal/SSTI/Log4Shell markers) in a query parameter and reports which the WAF blocks vs. passes, to gauge rule coverage.
 
 > **Authorized testing only.** These tools send live DNS, TCP, and HTTP requests. Only run them against systems you own or have explicit written permission to test.
 
@@ -29,7 +30,7 @@ cargo run --release --bin biochimera -- https://target.example/admin
 
 # Red Team recon (DNS, proxy/WAF, origin-IP, ports, timing)
 cargo run --release --bin reconstruction -- https://target.example
-# useful flags: --no-ports  --no-subs  --timing-samples <n>
+# useful flags: --no-ports  --no-subs  --timing-samples <n>  --waf-test  --param <name>
 ```
 
 Or use the interactive installer:
